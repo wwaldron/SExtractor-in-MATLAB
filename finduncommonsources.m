@@ -35,6 +35,7 @@ prsr.addParameter('MaxAngSepTrueSrc', 0.2,  @(x) assert(isnumeric(x) && isvector
 prsr.addParameter('Gain',               1,  @(x) assert(isnumeric(x) && isvector(x) && all(x >= 0)));
 prsr.addParameter('SeeingFWHM',       0.5,  @(x) assert(isnumeric(x) && isvector(x) && all(x >= 0))); % ArcSecond
 prsr.addParameter('PixelScale',       1.0,  @(x) assert(isnumeric(x) && isvector(x) && all(x >= 0))); % ArcSecond
+prsr.addParameter('RegOutputFormat','XYWorld',@(x) assert(any(strcmpi(x,{'XYWorld','XYImage','saoimage','saoworld'}))));
 prsr.parse(fitsFiles,configFile,paramFile,convFile,nnFile,varargin{:});
 
 % Make scalars into vectors
@@ -82,7 +83,8 @@ fclose(fidConf);
 dataStruct = runsextractor(fitsFiles,configFile,prsr);
 
 % Correlate the Data to Find Stars
-dataStruct = outpufalsesources(dataStruct,prsr.Results.MaxAngSepTrueSrc);
+dataStruct = outputfalsesources(dataStruct,prsr.Results.MaxAngSepTrueSrc,...
+    prsr.Results.RegOutputFormat);
 
 
 % If the user wants an output, give the structure containing the Ra and Dec
@@ -249,7 +251,7 @@ end
 end
 
 
-function dataStruct = outpufalsesources(dataStruct,maxSep)
+function dataStruct = outputfalsesources(dataStruct,maxSep,outFormat)
 
 nFiles = length(dataStruct);
 
@@ -306,8 +308,8 @@ for i = 1:nFiles % Over wavebands
         
         % Write those false sources to a file
         [catPath,catFile,~] = fileparts(dataStruct(i).catFile);
-        falseCatFile = fullfile(catPath,[catFile,'_falsesource','.reg']);
-        dlmwrite(falseCatFile,[raFalseOut,decFalseOut],'delimiter','\t',...
+        falseRegFile = fullfile(catPath,[catFile,'_falsesource','.reg']);
+        dlmwrite(falseRegFile,[raFalseOut,decFalseOut],'delimiter','\t',...
             'precision','%.10f');
         
     else
@@ -318,11 +320,94 @@ for i = 1:nFiles % Over wavebands
         
         % Write those false sources to a file
         [catPath,catFile,~] = fileparts(dataStruct(i).catFile);
-        falseCatFile = fullfile(catPath,[catFile,'_allsource','.reg']);
-        dlmwrite(falseCatFile,[raAllOut,decAllOut],'delimiter','\t',...
+        allRegFile = fullfile(catPath,[catFile,'_allsource','.reg']);
+        dlmwrite(allRegFile,[raAllOut,decAllOut],'delimiter','\t',...
             'precision','%.10f');
         
     end
+    
+end
+
+end
+
+
+function writetoregfile(file,outFormat,dataStruct)
+
+
+% If desired format is SAOImage and the right fields are in place.
+if strcmpi(outFormat,'saoimage') && ...
+        all(isfield(dataStruct,{'X_IMAGE','Y_IMAGE','A_IMAGE','B_IMAGE','THETA_IMAGE'}))
+    
+    
+    
+% If desired format is SAOImage but don't have ellipse parameters, but do
+% have centers in image space
+elseif strcmpi(outFormat,'saoimage') && ...
+        all(isfield(dataStruct,{'X_IMAGE','Y_IMAGE'}))
+    
+    
+    
+% If desired format is SAOImage but don't have ellipse parameters but do
+% have ceters in world space
+elseif strcmpi(outFormat,'saoimage') && ...
+        all(isfield(dataStruct,{'X_WORLD','Y_WORLD'}))
+    
+    
+    
+% If desired format is SAOWorld and have correct fields
+elseif strcmpi(outFormat,'soaworld') && ...
+        all(isfield(dataStruct,{'X_WORLD','Y_WORLD','A_WORLD','B_WORLD','THETA_WORLD'}))
+    
+    
+    
+% If desired format is SAOWorld but missing ellipse params but have centers
+% in world coordinates
+elseif strcmpi(outFormat,'soaworld') && ...
+        all(isfield(dataStruct,{'X_WORLD','Y_WORLD'}))
+    
+    
+    
+% If desired format is SAOWorld but missing ellipse params but have centers
+% in image coordinates
+elseif strcmpi(outFormat,'soaworld') && ...
+        all(isfield(dataStruct,{'X_IMAGE','Y_IMAGE'}))
+    
+    
+    
+% You get the picture . . .
+elseif strcmpi(outFormat,'XYWorld') && ...
+        all(isfield(dataStruct,{'X_WORLD','Y_WORLD'}))
+    
+    x = dataStruct.X_WORLD(~dataStruct.starInd);
+    y = dataStruct.Y_WORLD(~dataStruct.starInd);
+    dlmwrite(file,[x,y]);
+    
+elseif strcmpi(outFormat,'XYWorld') && ...
+        all(isfield(dataStruct,{'X_IMAGE','Y_IMAGE'}))
+    
+    warning('User specified XYWorld, but (X,Y)_WORLD was not found. Using (X,Y)_IMAGE.');
+    x = dataStruct.X_WORLD(~dataStruct.starInd);
+    y = dataStruct.Y_WORLD(~dataStruct.starInd);
+    dlmwrite(file,[x,y]);
+    
+elseif strcmpi(outFormat,'XYImage') && ...
+        all(isfield(dataStruct,{'X_IMAGE','Y_IMAGE'}))
+    
+    x = dataStruct.X_IMAGE(~dataStruct.starInd);
+    y = dataStruct.Y_IMAGE(~dataStruct.starInd);
+    dlmwrite(file,[x,y]);
+    
+elseif strcmpi(outFormat,'XYImage') && ...
+        all(isfield(dataStruct,{'X_WORLD','Y_WORLD'}))
+    
+    warning('User specified XYImage, but (X,Y)_Image was not found. Using (X,Y)_WORLD.');
+    x = dataStruct.X_WORLD(~dataStruct.starInd);
+    y = dataStruct.Y_WORLD(~dataStruct.starInd);
+    dlmwrite(file,[x,y]);
+    
+else
+    
+    error('Could not find (X_WORLD,Y_WORLD) or (X_IMAGE,Y_IMAGE). Make sure parameter file is properly configured and try again.');
     
 end
 
