@@ -312,8 +312,7 @@ for i = 1:nFiles % Over wavebands
         % Write those false sources to a file
         [catPath,catFile,~] = fileparts(dataStruct(i).catFile);
         allRegFile = fullfile(catPath,[catFile,'_allsource','.reg']);
-        dlmwrite(allRegFile,[raAllOut,decAllOut],'delimiter','\t',...
-            'precision','%.10f');
+        writetoregfile(allRegFile,outFormat,dataStruct(i));
         
     end
     
@@ -332,6 +331,7 @@ if strcmpi(outFormat,'saoimage') && ...
     tmpData = [dataStruct.X_IMAGE,dataStruct.Y_IMAGE,dataStruct.A_IMAGE,...
         dataStruct.B_IMAGE,dataStruct.THETA_IMAGE];
     fid = fopen(file,'w');
+    fprintf(fid,'# format: image\n');
     fprintf(fid,'ellipse(%.10f,%.10f,%.10f,%.10f,%.10f)\n',tmpData);
     fclose(fid);
     
@@ -358,19 +358,19 @@ elseif strcmpi(outFormat,'saoimage') && ...
             'precision','%.10f');
     
 % If desired format is SAOWorld and have correct fields
-elseif strcmpi(outFormat,'soaworld') && ...
+elseif strcmpi(outFormat,'saoworld') && ...
         all(isfield(dataStruct,{'X_WORLD','Y_WORLD','A_WORLD','B_WORLD','THETA_WORLD'}))
     
     tmpData = [dataStruct.X_WORLD,dataStruct.Y_WORLD,dataStruct.A_WORLD,...
         dataStruct.B_WORLD,dataStruct.THETA_WORLD];
     fid = fopen(file,'w');
-    fprintf(fid,'# format: degrees (fk5)');
+    fprintf(fid,'# format: degrees (fk5)\n');
     fprintf(fid,'+ellipse(%.10f,%.10f,%.10f,%.10f,%.10f) #green\n',tmpData);
     fclose(fid);
     
 % If desired format is SAOWorld but missing ellipse params but have centers
 % in world coordinates
-elseif strcmpi(outFormat,'soaworld') && ...
+elseif strcmpi(outFormat,'saoworld') && ...
         all(isfield(dataStruct,{'X_WORLD','Y_WORLD'}))
     
     warning('User chose SAOWorld, but ellipse parameters not provided. Writing out (X,Y)_WORLD data for %s.',file.');
@@ -380,7 +380,7 @@ elseif strcmpi(outFormat,'soaworld') && ...
     
 % If desired format is SAOWorld but missing ellipse params but have centers
 % in image coordinates
-elseif strcmpi(outFormat,'soaworld') && ...
+elseif strcmpi(outFormat,'saoworld') && ...
         all(isfield(dataStruct,{'X_IMAGE','Y_IMAGE'}))
     
     warning('User chose SAOWorld, but ellipse parameters not provided. Writing out (X,Y)_IMAGE data for %s.',file.');

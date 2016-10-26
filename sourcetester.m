@@ -37,6 +37,7 @@ nvPairs.Gain              = [1.54,2.5,2.0,2.0];
 nvPairs.SeeingFWHM        = [0.4 ,0.1,0.5,0.5];
 nvPairs.DetectMinArea     = 4;
 nvPairs.PixelScale        = 0;
+nvPairs.RegOutputFormat   = 'XYWorld';
 
 data = finduncommonsources(fitsFiles,confFile,paramFile,convFile,nnFile,...
     nvPairs);
