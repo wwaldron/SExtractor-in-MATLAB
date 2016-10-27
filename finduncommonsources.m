@@ -35,7 +35,7 @@ prsr.addParameter('MaxAngSepTrueSrc', 0.2,  @(x) assert(isnumeric(x) && isvector
 prsr.addParameter('Gain',               1,  @(x) assert(isnumeric(x) && isvector(x) && all(x >= 0)));
 prsr.addParameter('SeeingFWHM',       0.5,  @(x) assert(isnumeric(x) && isvector(x) && all(x >= 0))); % ArcSecond
 prsr.addParameter('PixelScale',       1.0,  @(x) assert(isnumeric(x) && isvector(x) && all(x >= 0))); % ArcSecond
-prsr.addParameter('RegOutputFormat','XYWorld',@(x) assert(any(strcmpi(x,{'XYWorld','XYImage','saoimage','saoworld'}))));
+prsr.addParameter('RegOutputFormat','XYWorld',@(x) assert(any(strcmpi(x,{'XYWorld','XYImage','saoimage','saoimagecirc','saoworld'}))));
 prsr.parse(fitsFiles,configFile,paramFile,convFile,nnFile,varargin{:});
 
 % Make scalars into vectors
@@ -325,7 +325,18 @@ function writetoregfile(file,outFormat,dataStruct)
 
 
 % If desired format is SAOImage and the right fields are in place.
-if strcmpi(outFormat,'saoimage') && ...
+if strcmpi(outFormat,'saoimagecirc') && ...
+        all(isfield(dataStruct,{'X_IMAGE','Y_IMAGE'}))
+    
+    writeInd = ~dataStruct.starInd;
+    tmpData = [dataStruct.X_IMAGE(writeInd),dataStruct.Y_IMAGE(writeInd),...
+        3*ones(size(dataStruct.Y_IMAGE(writeInd)))]';
+    fid = fopen(file,'w');
+    fprintf(fid,'# format: image\n');
+    fprintf(fid,'circle(%.10f,%.10f,%.10f)\n',tmpData);
+    fclose(fid);
+    
+elseif strcmpi(outFormat,'saoimage') && ...
         all(isfield(dataStruct,{'X_IMAGE','Y_IMAGE','A_IMAGE','B_IMAGE','THETA_IMAGE'}))
     
     writeInd = ~dataStruct.starInd;
