@@ -16,17 +16,29 @@ clc
 % jb9g01010_drc_slice.fits =  ACS,  814 nm
 % jb9g01020_drc_slice.fits =  ACS,  475 nm
 
+% % The FITS Files of interest (full path recommended)
+% fitsFiles = {'/home/wwaldron/Pictures/tmp/sliced_images/ib9ga1010_drc_slice.fits',...
+% '/home/wwaldron/Pictures/tmp/sliced_images/iblwa1010_drz_slice.fits',...
+% '/home/wwaldron/Pictures/tmp/sliced_images/jb9g01010_drc_slice.fits',...
+% '/home/wwaldron/Pictures/tmp/sliced_images/jb9g01020_drc_slice.fits'};
+% 
+% % Helper files
+% confFile  = '/home/wwaldron/Pictures/tmp/SExtractorFiles/eso_137-001.conf';
+% paramFile = '/home/wwaldron/Pictures/tmp/SExtractorFiles/eso_137-001.param';
+% convFile  = '/usr/share/sextractor/default.conv';
+% nnFile    = '/usr/share/sextractor/default.nnw';
+
 % The FITS Files of interest (full path recommended)
-fitsFiles = {'/home/wwaldron/Pictures/tmp/sliced_images/ib9ga1010_drc_slice.fits',...
-'/home/wwaldron/Pictures/tmp/sliced_images/iblwa1010_drz_slice.fits',...
-'/home/wwaldron/Pictures/tmp/sliced_images/jb9g01010_drc_slice.fits',...
-'/home/wwaldron/Pictures/tmp/sliced_images/jb9g01020_drc_slice.fits'};
+fitsFiles = {'/home/wwaldron/Documents/DoctoralResearch-Dissertation/Images/09-01-16_MAST_DATA/sliced_images/ib9ga1010_drc_slice.fits',...
+'/home/wwaldron/Documents/DoctoralResearch-Dissertation/Images/09-01-16_MAST_DATA/sliced_images/iblwa1010_drz_slice.fits',...
+'/home/wwaldron/Documents/DoctoralResearch-Dissertation/Images/09-01-16_MAST_DATA/sliced_images/jb9g01010_drc_slice.fits',...
+'/home/wwaldron/Documents/DoctoralResearch-Dissertation/Images/09-01-16_MAST_DATA/sliced_images/jb9g01020_drc_slice.fits'};
 
 % Helper files
-confFile  = '/home/wwaldron/Pictures/tmp/SExtractorFiles/eso_137-001.conf';
-paramFile = '/home/wwaldron/Pictures/tmp/SExtractorFiles/eso_137-001.param';
-convFile  = '/usr/share/sextractor/default.conv';
-nnFile    = '/usr/share/sextractor/default.nnw';
+confFile  = '/home/wwaldron/Documents/DoctoralResearch-Dissertation/Images/09-01-16_MAST_DATA/ESO_137-001_SExtractor_Files/mingSExtractor2.conf';
+paramFile = '/home/wwaldron/Documents/DoctoralResearch-Dissertation/Images/09-01-16_MAST_DATA/ESO_137-001_SExtractor_Files/mingSExtractor.param';
+convFile  = '/home/wwaldron/Software/SExtractor/ConvolutionKernals/default.conv';
+nnFile    = '/home/wwaldron/Software/SExtractor/ConvolutionKernals/default.nnw';
 
 % Name-Value Pair Arguments
 nvPairs.SExtractorCommand = 'sextractor';
