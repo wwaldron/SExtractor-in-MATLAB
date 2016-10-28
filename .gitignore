@@ -1,2 +1,5 @@
 # Don't want any MATLAB temp files
 *.m~
+
+# Don't include the wrapper script anymore
+sourcetester.m
