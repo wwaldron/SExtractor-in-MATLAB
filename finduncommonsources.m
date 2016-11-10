@@ -20,6 +20,8 @@ prsr.addRequired('dataStruct', ...
 prsr.addParameter('MaxAngSepTrueSrc', 0.2,    @(x) assert(isnumeric(x) && isvector(x) && all(x >= 0))); % ArcSecond
 prsr.addParameter('RegOutputFormat','XYWorld',@(x) assert(any(strcmpi(x,{'XYWorld','XYImage','saoimage','saoimagecirc','saoworld'}))));
 prsr.addParameter('CircleRegionRadius', 3,    @(x) assert(isnumeric(x) && isscalar(x) && x > 0));
+prsr.addParameter('RmLargeSources', false,    @(x) assert(islogical(x) && isscalar(x)));
+prsr.addParameter('LargeSourceArea',  100,    @(x) assert(isnumeric(x) && isscalar(x) && x > 0));
 prsr.parse(dataStruct,varargin{:});
 
 % Make scalars into vectors
@@ -33,7 +35,7 @@ prsr.Results.MaxAngSepTrueSrc  = makevector(prsr.Results.MaxAngSepTrueSrc,fileLi
 % Setup the star ind
 nFiles = length(dataStruct);
 for i = 1:nFiles
-    dataStruct(i).starInd = false(size(dataStruct(i).X_WORLD));
+    dataStruct(i).starAndLrgInd = false(size(dataStruct(i).X_WORLD));
 end
 
 % Identify and write out the bad sources
@@ -69,15 +71,23 @@ for i = 1:nFiles % Over wavebands
             
             % 2D Logical Array indicating where the angular separation is less
             % than the maximum allowed separation for a 'true' source.
-            curStarInd = (dTh <= prsr.Results.MaxAngSepTrueSrc(i));
+            curstarAndLrgInd = (dTh <= prsr.Results.MaxAngSepTrueSrc(i));
             
             % Update the logical arrays for each waveband indicating where
             % stars are
-            starI = any(curStarInd,1);
-            starJ = any(curStarInd,2);
-            dataStruct(i).starInd = dataStruct(i).starInd | starI(:);
-            dataStruct(j).starInd = dataStruct(j).starInd | starJ(:);
+            starI = any(curstarAndLrgInd,1);
+            starJ = any(curstarAndLrgInd,2);
+            dataStruct(i).starAndLrgInd = dataStruct(i).starAndLrgInd | starI(:);
+            dataStruct(j).starAndLrgInd = dataStruct(j).starAndLrgInd | starJ(:);
             
+        end
+        
+        % If the source is too large, remove it too
+        if prsr.Results.RmLargeSources && ...
+                all(isfield(dataStruct,{'A_IMAGE','B_IMAGE'}))
+            areas = pi*dataStruct(i).A_IMAGE.*dataStruct(i).B_IMAGE;
+            largeInd2Rm = areas > prsr.Results.LargeSourceArea;
+            dataStruct(i).starAndLrgInd = dataStruct(i).starAndLrgInd | largeInd2Rm;
         end
         
         % Write those false sources to a file
@@ -87,6 +97,14 @@ for i = 1:nFiles % Over wavebands
             dataStruct(i),prsr.Results.CircleRegionRadius);
         
     else
+        
+        % If the source is too large, remove it too
+        if prsr.Results.RmLargeSources && ...
+                all(isfield(dataStruct,{'A_IMAGE','B_IMAGE'}))
+            areas = pi*dataStruct(i).A_IMAGE.*dataStruct(i).B_IMAGE;
+            largeInd2Rm = areas > prsr.Results.LargeSourceArea;
+            dataStruct(i).starAndLrgInd = dataStruct(i).starAndLrgInd & ~largeInd2Rm;
+        end
         
         % Write those false sources to a file
         [catPath,catFile,~] = fileparts(dataStruct(i).catFile);
@@ -108,7 +126,7 @@ function writetoregfile(file,outFormat,dataStruct,circRad)
 if strcmpi(outFormat,'saoimagecirc') && ...
         all(isfield(dataStruct,{'X_IMAGE','Y_IMAGE'}))
     
-    writeInd = ~dataStruct.starInd;
+    writeInd = ~dataStruct.starAndLrgInd;
     tmpData = [dataStruct.X_IMAGE(writeInd),dataStruct.Y_IMAGE(writeInd),...
         circRad*ones(size(dataStruct.Y_IMAGE(writeInd)))]';
     fid = fopen(file,'w');
@@ -119,7 +137,7 @@ if strcmpi(outFormat,'saoimagecirc') && ...
 elseif strcmpi(outFormat,'saoimage') && ...
         all(isfield(dataStruct,{'X_IMAGE','Y_IMAGE','A_IMAGE','B_IMAGE','THETA_IMAGE'}))
     
-    writeInd = ~dataStruct.starInd;
+    writeInd = ~dataStruct.starAndLrgInd;
     tmpData = [dataStruct.X_IMAGE(writeInd),dataStruct.Y_IMAGE(writeInd),...
         dataStruct.A_IMAGE(writeInd),dataStruct.B_IMAGE(writeInd),...
         dataStruct.THETA_IMAGE(writeInd)]';
@@ -134,8 +152,8 @@ elseif strcmpi(outFormat,'saoimage') && ...
         all(isfield(dataStruct,{'X_IMAGE','Y_IMAGE'}))
     
     warning('User chose SAOImage, but ellipse parameters not provided. Writing out (X,Y)_IMAGE data for %s.',file);
-    x = dataStruct.X_IMAGE(~dataStruct.starInd);
-    y = dataStruct.Y_IMAGE(~dataStruct.starInd);
+    x = dataStruct.X_IMAGE(~dataStruct.starAndLrgInd);
+    y = dataStruct.Y_IMAGE(~dataStruct.starAndLrgInd);
     dlmwrite(file,[x,y],'delimiter','\t',...
             'precision','%.10f');
     
@@ -145,8 +163,8 @@ elseif strcmpi(outFormat,'saoimage') && ...
         all(isfield(dataStruct,{'X_WORLD','Y_WORLD'}))
     
     warning('User chose SAOImage, but ellipse parameters not provided. Writing out (X,Y)_WORLD data for %s.',file.');
-    x = dataStruct.X_WORLD(~dataStruct.starInd);
-    y = dataStruct.Y_WORLD(~dataStruct.starInd);
+    x = dataStruct.X_WORLD(~dataStruct.starAndLrgInd);
+    y = dataStruct.Y_WORLD(~dataStruct.starAndLrgInd);
     dlmwrite(file,[x,y],'delimiter','\t',...
             'precision','%.10f');
     
@@ -154,7 +172,7 @@ elseif strcmpi(outFormat,'saoimage') && ...
 elseif strcmpi(outFormat,'saoworld') && ...
         all(isfield(dataStruct,{'X_WORLD','Y_WORLD','A_WORLD','B_WORLD','THETA_WORLD'}))
     
-    writeInd = ~dataStruct.starInd;
+    writeInd = ~dataStruct.starAndLrgInd;
     tmpData = [dataStruct.X_WORLD(writeInd),dataStruct.Y_WORLD(writeInd),...
         dataStruct.A_WORLD(writeInd),dataStruct.B_WORLD(writeInd),...
         dataStruct.THETA_WORLD(writeInd)]';
@@ -169,8 +187,8 @@ elseif strcmpi(outFormat,'saoworld') && ...
         all(isfield(dataStruct,{'X_WORLD','Y_WORLD'}))
     
     warning('User chose SAOWorld, but ellipse parameters not provided. Writing out (X,Y)_WORLD data for %s.',file.');
-    x = dataStruct.X_WORLD(~dataStruct.starInd);
-    y = dataStruct.Y_WORLD(~dataStruct.starInd);
+    x = dataStruct.X_WORLD(~dataStruct.starAndLrgInd);
+    y = dataStruct.Y_WORLD(~dataStruct.starAndLrgInd);
     dlmwrite(file,[x,y]);
     
 % If desired format is SAOWorld but missing ellipse params but have centers
@@ -179,8 +197,8 @@ elseif strcmpi(outFormat,'saoworld') && ...
         all(isfield(dataStruct,{'X_IMAGE','Y_IMAGE'}))
     
     warning('User chose SAOWorld, but ellipse parameters not provided. Writing out (X,Y)_IMAGE data for %s.',file.');
-    x = dataStruct.X_IMAGE(~dataStruct.starInd);
-    y = dataStruct.Y_IMAGE(~dataStruct.starInd);
+    x = dataStruct.X_IMAGE(~dataStruct.starAndLrgInd);
+    y = dataStruct.Y_IMAGE(~dataStruct.starAndLrgInd);
     dlmwrite(file,[x,y],'delimiter','\t',...
             'precision','%.10f');
     
@@ -188,8 +206,8 @@ elseif strcmpi(outFormat,'saoworld') && ...
 elseif strcmpi(outFormat,'XYWorld') && ...
         all(isfield(dataStruct,{'X_WORLD','Y_WORLD'}))
     
-    x = dataStruct.X_WORLD(~dataStruct.starInd);
-    y = dataStruct.Y_WORLD(~dataStruct.starInd);
+    x = dataStruct.X_WORLD(~dataStruct.starAndLrgInd);
+    y = dataStruct.Y_WORLD(~dataStruct.starAndLrgInd);
     dlmwrite(file,[x,y],'delimiter','\t',...
             'precision','%.10f');
     
@@ -197,16 +215,16 @@ elseif strcmpi(outFormat,'XYWorld') && ...
         all(isfield(dataStruct,{'X_IMAGE','Y_IMAGE'}))
     
     warning('User specified XYWorld, but (X,Y)_WORLD was not found. Using (X,Y)_IMAGE for %s.',file.');
-    x = dataStruct.X_IMAGE(~dataStruct.starInd);
-    y = dataStruct.Y_IMAGE(~dataStruct.starInd);
+    x = dataStruct.X_IMAGE(~dataStruct.starAndLrgInd);
+    y = dataStruct.Y_IMAGE(~dataStruct.starAndLrgInd);
     dlmwrite(file,[x,y],'delimiter','\t',...
             'precision','%.10f');
     
 elseif strcmpi(outFormat,'XYImage') && ...
         all(isfield(dataStruct,{'X_IMAGE','Y_IMAGE'}))
     
-    x = dataStruct.X_IMAGE(~dataStruct.starInd);
-    y = dataStruct.Y_IMAGE(~dataStruct.starInd);
+    x = dataStruct.X_IMAGE(~dataStruct.starAndLrgInd);
+    y = dataStruct.Y_IMAGE(~dataStruct.starAndLrgInd);
     dlmwrite(file,[x,y],'delimiter','\t',...
             'precision','%.10f');
     
@@ -214,8 +232,8 @@ elseif strcmpi(outFormat,'XYImage') && ...
         all(isfield(dataStruct,{'X_WORLD','Y_WORLD'}))
     
     warning('User specified XYImage, but (X,Y)_Image was not found. Using (X,Y)_WORLD for %s.',file.');
-    x = dataStruct.X_WORLD(~dataStruct.starInd);
-    y = dataStruct.Y_WORLD(~dataStruct.starInd);
+    x = dataStruct.X_WORLD(~dataStruct.starAndLrgInd);
+    y = dataStruct.Y_WORLD(~dataStruct.starAndLrgInd);
     dlmwrite(file,[x,y],'delimiter','\t',...
             'precision','%.10f');
     
