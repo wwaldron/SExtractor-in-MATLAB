@@ -13,12 +13,13 @@ end
 % First validate the inputs
 prsr = inputParser;
 prsr.StructExpand = true;
-prsr.addRequired('fitsFiles' ,@(x) assert(iscellstr(x) && all(cellfun(@exist,x) )));
+prsr.addRequired('fitsFiles' ,@(x) assert((iscellstr(x) && all(cellfun(@exist,x)) || (ischar(x) && logical(exist(x,'file'))) )));
 prsr.addRequired('configFile',@(x) assert(ischar(x)));
 prsr.addRequired('paramFile' ,@(x) assert(ischar(x) && exist(x,'file')));
 prsr.addRequired('convFile'  ,@(x) assert(ischar(x) && exist(x,'file')));
 prsr.addRequired('nnFile'    ,@(x) assert(ischar(x) && exist(x,'file')));
-prsr.addParameter('SExtractorCommand','sex',@(x) assert(any(strcmp(x,{'sex','sextractor'}))));
+prsr.addParameter('SExtractorCommand','sex',@(x) assert((iscellstr(x) && all(cellfun(@exist,x)) || (ischar(x) && logical(exist(x,'file'))) )));
+prsr.addParameter('fits2',             {},  @(x) assert(ischar(x) || iscellstr(x)));
 prsr.addParameter('DetectMinArea',      5,  @(x) assert(isnumeric(x) && isvector(x) && all(x > 0))); % Pixels
 prsr.addParameter('DetectThreshold',  1.5,  @(x) assert(isnumeric(x) && isvector(x) && all(x > 0))); % sigma
 prsr.addParameter('AnalysisThreshold',1.5,  @(x) assert(isnumeric(x) && isvector(x) && all(x > 0))); % sigma
