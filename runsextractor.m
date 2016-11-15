@@ -232,6 +232,10 @@ function catStruct = runandparsedual(fitsFiles,confFile,prsr)
 % This sub-routine runs SExtractor in the dual mode where file1 is used to
 % detect sources, but the photometry analysis is performed on file2.
 
+if ~iscellstr(fitsFiles)
+    fitsFiles = {fitsFiles};
+end
+
 
 for i = length(fitsFiles):-1:1
     
@@ -254,11 +258,15 @@ for i = length(fitsFiles):-1:1
         'SeeingFWHM',prsr.UsingDefaults);
     confStr = replaceline(confStr,'PIXEL_SCALE',prsr.Results.PixelScale(i),...
         'PixelScale',prsr.UsingDefaults);
-    [fitsPath,fitsIName,~] = fileparts(fitsFiles{i});
+    [fitsPath,fitsIName,~] = fileparts(fitsI);
+    
+    if ~iscellstr(prsr.Results.FitsDualFiles)
+        prsr.Results.FitsDualFiles = {prsr.Results.FitsDualFiles};
+    end
     
     for j = length(prsr.Results.FitsDualFiles):-1:1
         
-        fitsJ = prsr.Reults.FitsDualFiles{1};
+        fitsJ = prsr.Results.FitsDualFiles{j};
         
         if strcmpi(fitsI,fitsJ)
             continue;
