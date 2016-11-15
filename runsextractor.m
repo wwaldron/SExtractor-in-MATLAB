@@ -235,6 +235,8 @@ function catStruct = runandparsedual(fitsFiles,confFile,prsr)
 
 for i = length(fitsFiles):-1:1
     
+    fitsI = fitsFiles{i};
+    
     % Modify the conf file to reflect items that should remain the same per
     % detect file
     confStr = fileread(confFile);
@@ -252,17 +254,19 @@ for i = length(fitsFiles):-1:1
         'SeeingFWHM',prsr.UsingDefaults);
     confStr = replaceline(confStr,'PIXEL_SCALE',prsr.Results.PixelScale(i),...
         'PixelScale',prsr.UsingDefaults);
-    [fitsPath,fitsName,~] = fileparts(fitsFiles{i});
+    [fitsPath,fitsIName,~] = fileparts(fitsFiles{i});
     
     for j = length(prsr.Results.FitsDualFiles):-1:1
         
-        if strcmpi(fitsFiles{i},prsr.Results.FitsDualFiles{j})
+        fitsJ = prsr.Reults.FitsDualFiles{1};
+        
+        if strcmpi(fitsI,fitsJ)
             continue;
         end
         
         % Create the CAT File
-        [~,fits2Name,~]       = fileparts(prsr.Results.FitsDualFiles{j});
-        catFile = fullfile(fitsPath,[fitsName,'&',fits2Name,'.cat']);
+        [~,fitsJName,~]       = fileparts(fitsJ);
+        catFile = fullfile(fitsPath,[fitsIName,'_&_',fitsJName,'.cat']);
         
         % Write the cat file to the conf string
         confStr = replaceline(confStr,'CATALOG_NAME',catFile);
@@ -274,7 +278,7 @@ for i = length(fitsFiles):-1:1
         
         % Build the SExtractor Command
         cmd = sprintf('%s %s,%s -c %s',prsr.Results.SExtractorCommand,...
-            fitsFiles{i},prsr.Results.FitsDualFiles{j},confFile);
+            fitsI,fitsJ,confFile);
         
         % Try Running the Command
         trysystem(cmd,confFile);
@@ -296,8 +300,8 @@ for i = length(fitsFiles):-1:1
         catTable.Properties.VariableNames = varNames;
         
         % Now convert to a struct and delete cat file if necessary
-        catStruct(i).inputFile = fitsFiles{i};
-        catStruct(i).dualPhotometry(j).photoFile = prsr.Results.FitsDualFiles{j};
+        catStruct(i).inputFile = fitsI;
+        catStruct(i).dualPhotometry(j).photoFile = fitsJ;
         if ~prsr.Results.RemoveCatFiles
             catStruct(i).dualPhotometry(j).catFile   = catFile;
         else
