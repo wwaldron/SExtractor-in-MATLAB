@@ -274,7 +274,7 @@ for i = length(fitsFiles):-1:1
         
         % Create the CAT File
         [~,fitsJName,~]       = fileparts(fitsJ);
-        catFile = fullfile(fitsPath,[fitsIName,'_&_',fitsJName,'.cat']);
+        catFile = fullfile(fitsPath,[fitsIName,'_and_',fitsJName,'.cat']);
         
         % Write the cat file to the conf string
         confStr = replaceline(confStr,'CATALOG_NAME',catFile);
