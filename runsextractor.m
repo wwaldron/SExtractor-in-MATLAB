@@ -13,32 +13,36 @@ end
 % First validate the inputs
 prsr = inputParser;
 prsr.StructExpand = true;
-prsr.addRequired('fitsFiles' ,@(x) assert(iscellstr(x) && all(cellfun(@exist,x) )));
+prsr.addRequired('fitsFiles' ,@(x) assert( (iscellstr(x) && all(cellfun(@exist,x))) || (ischar(x) && logical(exist(x,'file'))) ));
 prsr.addRequired('configFile',@(x) assert(ischar(x)));
 prsr.addRequired('paramFile' ,@(x) assert(ischar(x) && exist(x,'file')));
 prsr.addRequired('convFile'  ,@(x) assert(ischar(x) && exist(x,'file')));
 prsr.addRequired('nnFile'    ,@(x) assert(ischar(x) && exist(x,'file')));
-prsr.addParameter('SExtractorCommand','sex',@(x) assert(any(strcmp(x,{'sex','sextractor'}))));
+prsr.addParameter('SExtractorCommand','sex',@(x) assert( any(strcmpi(x,{'sex','sextractor'})) ));
+prsr.addParameter('FitsDualFiles',     {},  @(x) assert( (iscellstr(x) && all(cellfun(@exist,x))) || (ischar(x) && logical(exist(x,'file'))) ));
 prsr.addParameter('DetectMinArea',      5,  @(x) assert(isnumeric(x) && isvector(x) && all(x > 0))); % Pixels
 prsr.addParameter('DetectThreshold',  1.5,  @(x) assert(isnumeric(x) && isvector(x) && all(x > 0))); % sigma
 prsr.addParameter('AnalysisThreshold',1.5,  @(x) assert(isnumeric(x) && isvector(x) && all(x > 0))); % sigma
 prsr.addParameter('Gain',               1,  @(x) assert(isnumeric(x) && isvector(x) && all(x >= 0)));
 prsr.addParameter('SeeingFWHM',       0.5,  @(x) assert(isnumeric(x) && isvector(x) && all(x >= 0))); % ArcSecond
 prsr.addParameter('PixelScale',       1.0,  @(x) assert(isnumeric(x) && isvector(x) && all(x >= 0))); % ArcSecond
+prsr.addParameter('RemoveCatFiles', false,  @(x) assert(islogical(x)) )
 prsr.parse(fitsFiles,configFile,paramFile,convFile,nnFile,varargin{:});
 
 % Make scalars into vectors
 fileListLen = length(fitsFiles);
-wrnSt       = warning;
-warning('off');
-prsr        = struct(prsr);
-warning(wrnSt);
-prsr.Results.DetectMinArea     = makevector(prsr.Results.DetectMinArea,fileListLen);
-prsr.Results.DetectThreshold   = makevector(prsr.Results.DetectThreshold,fileListLen);
-prsr.Results.AnalysisThreshold = makevector(prsr.Results.AnalysisThreshold,fileListLen);
-prsr.Results.Gain              = makevector(prsr.Results.Gain,fileListLen);
-prsr.Results.SeeingFWHM        = makevector(prsr.Results.SeeingFWHM,fileListLen);
-prsr.Results.PixelScale        = makevector(prsr.Results.PixelScale,fileListLen);
+if fileListLen > 1
+    wrnSt       = warning;
+    warning('off');
+    prsr        = struct(prsr);
+    warning(wrnSt);
+    prsr.Results.DetectMinArea     = makevector(prsr.Results.DetectMinArea,fileListLen);
+    prsr.Results.DetectThreshold   = makevector(prsr.Results.DetectThreshold,fileListLen);
+    prsr.Results.AnalysisThreshold = makevector(prsr.Results.AnalysisThreshold,fileListLen);
+    prsr.Results.Gain              = makevector(prsr.Results.Gain,fileListLen);
+    prsr.Results.SeeingFWHM        = makevector(prsr.Results.SeeingFWHM,fileListLen);
+    prsr.Results.PixelScale        = makevector(prsr.Results.PixelScale,fileListLen);
+end
 
 
 % Create the config file if it does not exist
@@ -68,7 +72,11 @@ fprintf(fidConf,confStr);
 fclose(fidConf);
 
 % Run SExtractor
-dataStruct = runandparsesextractor(fitsFiles,configFile,prsr);
+if isempty(prsr.Results.FitsDualFiles)
+    dataStruct = runandparsesextractor(fitsFiles,configFile,prsr);
+else
+    dataStruct = runandparsedual(fitsFiles,configFile,prsr);
+end
 
 % If the user wants an output, give the structure containing the Ra and Dec
 % values for the detected cosmic rays
@@ -153,13 +161,8 @@ for i = length(fitsFiles):-1:1
     % We want the catalog names and other files to match the input files.
     % Therefore, we shall get the file name and path and use that in the
     % config file
-    if any(strfind(fitsFiles{i},'.fits')) % If the extension is lowercase
-        catFile = strrep(fitsFiles{i},'.fits','.cat');
-    elseif any(strfind(fitsFiles{i},'.FITS')) % If the extension is uppercase
-        catFile = strrep(fitsFiles{i},'.FITS','.cat');
-    else % Just try sticking the extension on the end
-        catFile = [fitsFiles{i},'.cat'];
-    end
+    [fitsPath,fitsName,~] = fileparts(fitsFiles{i});
+    catFile = fullfile(fitsPath,[fitsName,'.cat']);
     
     % Load in the config file
     confStr = fileread(confFile);
@@ -208,14 +211,119 @@ for i = length(fitsFiles):-1:1
     catTable = readtable(catFile,'FileType','Text','HeaderLines',numHdrLns);
     catTable.Properties.VariableNames = varNames;
     
-    % Now convert to a struct
+    % Now convert to a struct and delete cat file if necessary
     catStruct(i).inputFile = fitsFiles{i};
-    catStruct(i).catFile   = catFile;
+    if ~prsr.Results.RemoveCatFiles
+        catStruct(i).catFile   = catFile;
+    else
+        delete(catFile);
+        catStruct(i).catFile   = '';
+    end
     for j = 1:numHdrLns
         catStruct(i).(catTable.Properties.VariableNames{j}) = catTable.(j);
     end
     
 end
+
+end
+
+
+function catStruct = runandparsedual(fitsFiles,confFile,prsr)
+% This sub-routine runs SExtractor in the dual mode where file1 is used to
+% detect sources, but the photometry analysis is performed on file2.
+
+if ~iscellstr(fitsFiles)
+    fitsFiles = {fitsFiles};
+end
+
+
+for i = length(fitsFiles):-1:1
+    
+    fitsI = fitsFiles{i};
+    
+    % Modify the conf file to reflect items that should remain the same per
+    % detect file
+    confStr = fileread(confFile);
+    
+    % Replace certain conf params
+    confStr = replaceline(confStr,'DETECT_MINAREA',prsr.Results.DetectMinArea(i),...
+        'DetectMinArea',prsr.UsingDefaults);
+    confStr = replaceline(confStr,'DETECT_THRESH',prsr.Results.DetectThreshold(i),...
+        'DetectThreshold',prsr.UsingDefaults);
+    confStr = replaceline(confStr,'ANALYSIS_THRESH',prsr.Results.AnalysisThreshold(i),...
+        'AnalysisThreshold',prsr.UsingDefaults);
+    confStr = replaceline(confStr,'GAIN',prsr.Results.Gain(i),...
+        'Gain',prsr.UsingDefaults);
+    confStr = replaceline(confStr,'SEEING_FWHM',prsr.Results.SeeingFWHM(i),...
+        'SeeingFWHM',prsr.UsingDefaults);
+    confStr = replaceline(confStr,'PIXEL_SCALE',prsr.Results.PixelScale(i),...
+        'PixelScale',prsr.UsingDefaults);
+    [fitsPath,fitsIName,~] = fileparts(fitsI);
+    
+    if ~iscellstr(prsr.Results.FitsDualFiles)
+        prsr.Results.FitsDualFiles = {prsr.Results.FitsDualFiles};
+    end
+    
+    for j = length(prsr.Results.FitsDualFiles):-1:1
+        
+        fitsJ = prsr.Results.FitsDualFiles{j};
+        
+        if strcmpi(fitsI,fitsJ)
+            continue;
+        end
+        
+        % Create the CAT File
+        [~,fitsJName,~]       = fileparts(fitsJ);
+        catFile = fullfile(fitsPath,[fitsIName,'_and_',fitsJName,'.cat']);
+        
+        % Write the cat file to the conf string
+        confStr = replaceline(confStr,'CATALOG_NAME',catFile);
+        
+        % Write the changes to the file
+        fidConf = fopen(confFile,'w');
+        fprintf(fidConf,confStr);
+        fclose(fidConf);
+        
+        % Build the SExtractor Command
+        cmd = sprintf('%s %s,%s -c %s',prsr.Results.SExtractorCommand,...
+            fitsI,fitsJ,confFile);
+        
+        % Try Running the Command
+        trysystem(cmd,confFile);
+        
+        % Now, get the number of header lines
+        numHdrLns = numel(strfind(fileread(catFile),'#'));
+        
+        % Now store the Variable names
+        catFid   = fopen(catFile,'r');
+        varNames = cell(1,numHdrLns);
+        for k = 1:numHdrLns
+            fileLine = fgetl(catFid);
+            varNames{k} = strtrim(fileLine(6:29)); % The Variable column is 6:29
+        end
+        fclose(catFid);
+        
+        % Get the table and change the names
+        catTable = readtable(catFile,'FileType','Text','HeaderLines',numHdrLns);
+        catTable.Properties.VariableNames = varNames;
+        
+        % Now convert to a struct and delete cat file if necessary
+        catStruct(i).inputFile = fitsI;
+        catStruct(i).dualPhotometry(j).photoFile = fitsJ;
+        if ~prsr.Results.RemoveCatFiles
+            catStruct(i).dualPhotometry(j).catFile   = catFile;
+        else
+            delete(catFile);
+            catStruct(i).dualPhotometry(j).catFile   = '';
+        end
+        for k = 1:numHdrLns
+            catStruct(i).dualPhotometry(j).(catTable.Properties.VariableNames{k}) = catTable.(k);
+        end
+        
+    end
+    
+end
+
 
 end
 
