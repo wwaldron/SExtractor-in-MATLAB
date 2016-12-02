@@ -223,6 +223,32 @@ for i = length(fitsFiles):-1:1
         catStruct(i).(catTable.Properties.VariableNames{j}) = catTable.(j);
     end
     
+    % Add the filter
+    fileInfo = fitsinfo(fitsFiles{i});
+    if isfield(fileInfo,'PrimaryData') && isfield(fileInfo.PrimaryData,'Keywords')
+        
+        % Get the keywords
+        keys    = fileInfo.PrimaryData.Keywords(:,1);
+        
+        % Look for the filter
+        filtInd = strcmpi('FILTER',keys);
+        
+        % If we don't find the filter, look for filter1
+        if ~any(filtInd)
+            filtInd = strcmpi('FILTER1',keys);
+            if contains(fileInfo.PrimaryData.Keywords(filtInd,2),'CLEAR','IgnoreCase',true)
+                filtInd = strcmpi('FILTER2',keys);
+            end
+        end
+        
+        % Store the filter
+        filter  = fileInfo.PrimaryData.Keywords(filtInd,:);
+        catStruct(i).filter = filter{2};
+        
+    else
+        catStruct(i).filter = [];
+    end
+    
 end
 
 end
@@ -318,6 +344,32 @@ for i = length(fitsFiles):-1:1
         end
         for k = 1:numHdrLns
             catStruct(i).dualPhotometry(j).(catTable.Properties.VariableNames{k}) = catTable.(k);
+        end
+        
+        % Add the filter
+        fileInfo = fitsinfo(fitsJ);
+        if isfield(fileInfo,'PrimaryData') && isfield(fileInfo.PrimaryData,'Keywords')
+            
+            % Get the keywords
+            keys    = fileInfo.PrimaryData.Keywords(:,1);
+            
+            % Look for the filter
+            filtInd = strcmpi('FILTER',keys);
+            
+            % If we don't find the filter, look for filter1
+            if ~any(filtInd)
+                filtInd = strcmpi('FILTER1',keys);
+                if contains(fileInfo.PrimaryData.Keywords(filtInd,2),'CLEAR','IgnoreCase',true)
+                    filtInd = strcmpi('FILTER2',keys);
+                end
+            end
+            
+            % Store the filter
+            filter  = fileInfo.PrimaryData.Keywords(filtInd,:);
+            catStruct(i).dualPhotometry(j).filter = filter{2};
+            
+        else
+            catStruct(i).filter = [];
         end
         
     end
