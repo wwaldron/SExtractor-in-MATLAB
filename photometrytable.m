@@ -11,7 +11,15 @@ prsr.addParameter('MaxSep',0.2, @(x) assert(isnumeric(x) && isscalar(x) && x > 0
 prsr.parse(photoStruct,fileName,varargin{:});
 
 % Find Common Sources and combine
-dataTable = findcommon(photoStruct,prsr.Results.MaxSep);
+dataStructOfTables = findcommon(photoStruct,prsr.Results.MaxSep);
+
+% Write Data to File
+writedatatables(dataStructOfTables,fileName);
+
+% Output desired data
+if nargout == 1
+    varargout{1} = dataStructOfTables;
+end
 
 
 end
@@ -23,13 +31,14 @@ function outputStruct = findcommon(inputStruct, maxAllowSep)
 % Initial Data
 nFiles     = length(inputStruct);
 nPotSrcs   = 0;
-dualFields = 0;
+% dualFields = 0;
 for i = 1:nFiles
     nPotSrcs = nPotSrcs + length(inputStruct(i).X_WORLD);
-    inputStruct(i).commonTo = uint16(zeros(size(inputStruct(i).X_WORLD)));
-    if isfield(inputStruct(i),'dualPhotometry')
-        dualFields = dualFields + length(inputStruct(i).dualPhotometry);
-    end
+    inputStruct(i).commonTo = zeros(length(inputStruct(i).X_WORLD), ...
+        length(inputStruct),'uint32');
+%     if isfield(inputStruct(i),'dualPhotometry')
+%         dualFields = dualFields + length(inputStruct(i).dualPhotometry);
+%     end
 end
 
 % First, we need to know if sources from other bands overlap. We know that,
@@ -53,59 +62,96 @@ for i = 1:nFiles % Over waveband
         
         % 2-D Array that has the indices of the sources the two current
         % bands have in common.
-        commonInd = (dTh <= maxAllowSep);
-        
-        % Separate the two bands
-        commonI = any(commonInd,1);
-        commonJ = any(commonInd,2);
+        [commonIndJ,commonIndI] = find(dTh <= maxAllowSep);
         
         % Use bit-wise addition to indicate cross-correlation
-        inputStruct(i).commonTo(commonI(:)) = 2^j + inputStruct(i).commonTo(commonI(:));
-        inputStruct(j).commonTo(commonJ(:)) = 2^i + inputStruct(j).commonTo(commonJ(:));
+        inputStruct(i).commonTo(commonIndI,j) = commonIndJ;
+        inputStruct(j).commonTo(commonIndJ,i) = commonIndI;
         
     end
-end
-
-% Clear up the memory
-clearvars commonI commonJ commonInd dDec dRa dTh decBar decI decJ raI raJ
-
-% Now create the RA/DEC arrays
-RightAscension = inputStruct(1).X_WORLD;
-Declination    = inputStruct(1).Y_WORLD;
-for i = 2:nFiles
-    % Initialize the common array to false (essentially making each one
-    % unique
-    common = false(size(inputStruct(i).X_WORLD));
     
-    % Look at each preceding band in a bitwise fashion to indicate which
-    % sources are no longer unique (sources that are in preceding bands)
-    for j = 1:(i-1)
-        common = (common | logical(bitand(inputStruct(i).commonTo,2^j)));
+    if i == 1
+        % create the RA/DEC arrays
+        RightAscension = inputStruct(1).X_WORLD;
+        Declination    = inputStruct(1).Y_WORLD;
+        
+        % Since this is the first to be added, each source in the first
+        % filter will line up with the same index in the combined array.
+        inputStruct(i).commonCombined = (1:length(inputStruct(i).X_WORLD))';
+        arrLens = 0;
+    else
+        % Add sources that are not common to the previous bands
+        tmpCommonTo = inputStruct(i).commonTo(:,1:i-1);
+        common = any(tmpCommonTo, 2);
+        arrLens        = [arrLens, length(RightAscension)];
+        RightAscension = [RightAscension; inputStruct(i).X_WORLD(~common)]; %#ok<*AGROW>
+        Declination    = [Declination;    inputStruct(i).Y_WORLD(~common)];
+        
+        % Add the indices of the current filter that match the combined
+        % array
+        nNew = sum(~common);
+        inputStruct(i).commonCombined(~common) = (arrLens(i)+1):(arrLens(i)+nNew);
+        inputStruct(i).commonCombined = inputStruct(i).commonCombined';    % Don't know why but this needs transposing here.
+        beenAdded = ~common;
+        for j = 1:i-1 % Go through the columns to add indices from previous 
+            curCommon = tmpCommonTo(:,j);
+            inputStruct(i).commonCombined(~beenAdded & curCommon) = ...
+                curCommon(~beenAdded & curCommon) + arrLens(j);
+            beenAdded = (beenAdded | curCommon);
+        end
+        
     end
-    RightAscension = [RightAscension; inputStruct(i).X_WORLD(~common)]; %#ok<*AGROW>
-    Declination    = [Declination;    inputStruct(i).Y_WORLD(~common)];
+    
 end
 
-% Initialize the table we will use to store in our data structure
-tmpTable = table(RightAscension,Declination);
-for i = 1:nFiles
-    tmpTable.(inputStruct(i).filter) = zeros(size(Declination));
-    for j = 1:length(inputStruct(i).dualPhotometry)
-        fieldName = [inputStruct(i).filter,'_',inputStruct(i).dualPhotometry(j).filter];
-        tmpTable.(fieldName) = zeros(size(Declination));
-    end
-end
+% Clear up the memory (may not need)
+clearvars commonIndI commonIndJ dDec dRa dTh decBar decI decJ raI raJ tmpCommonTo
 
-% Finally, create the output structure
+% Create the output structure
 goodFields = {'FLUX_ISO','MAG_ISO','FLUX_ISOCOR','MAG_ISOCOR','FLUX_AUTO',...
     'MAG_AUTO','FLUX_BEST','MAG_BEST'};
-for i = 1:length(goodFields)
+tmpTable = table(RightAscension,Declination);
+for k = 1:length(goodFields) % Loop through the data we want
     
-    % PLACE HOLDER
-    outputStruct.(goodFields{i}) = 0;
+    for i = 1:nFiles % Loop through the single detection fields
+        
+        dataToWrite = zeros(size(RightAscension));
+        dataToWrite(inputStruct(i).commonCombined) = inputStruct(i).(goodFields{k});
+        tmpTable.(inputStruct(i).filter) = dataToWrite;
+        
+        for j = 1:length(inputStruct(i).dualPhotometry) % Loop through dual detection fields
+            
+            dataToWrite = zeros(size(RightAscension));
+            dataToWrite(inputStruct(i).commonCombined) = inputStruct(i).dualPhotometry(j).(goodFields{k});
+            tableFieldName = [inputStruct(i).filter,'_',inputStruct(i).dualPhotometry(j).filter];
+            tmpTable.(tableFieldName) = dataToWrite;
+            
+        end
+        
+    end
     
+    outputStruct.(goodFields{k}) = tmpTable;
+    
+end
+
 end
 
 
 
+% Function to write the data to a spreadsheet format
+function writedatatables(structOfTables,fileName)
+
+fieldNames = fieldnames(structOfTables);
+
+for i = 1:length(fieldNames)
+    
+    tblToWrite = structOfTables.(fieldNames{i});
+    writetable(tblToWrite, fileName, 'FileType', 'spreadsheet',...
+        'Sheet', fieldNames{i});
+    
 end
+
+end
+
+
+
