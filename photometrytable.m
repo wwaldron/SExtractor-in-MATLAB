@@ -143,6 +143,7 @@ function writedatatables(structOfTables,fileName)
 
 fieldNames = fieldnames(structOfTables);
 
+origWarnState = warning('off');
 for i = 1:length(fieldNames)
     
     tblToWrite = structOfTables.(fieldNames{i});
@@ -150,6 +151,7 @@ for i = 1:length(fieldNames)
         'Sheet', fieldNames{i});
     
 end
+warning(origWarnState);
 
 end
 
