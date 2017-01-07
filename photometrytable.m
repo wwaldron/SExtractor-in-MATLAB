@@ -8,10 +8,22 @@ prsr = inputParser;
 prsr.addRequired('photoStruct', @(x) assert(isstruct(x) && all(isfield(x,{'X_WORLD','Y_WORLD'}))) );
 prsr.addRequired('fileName',    @(x) assert(ischar(x)) );
 prsr.addParameter('MaxSep',0.2, @(x) assert(isnumeric(x) && isscalar(x) && x > 0) );
+prsr.addParameter('FilterTable',false, @(x) assert(isscalar(x) && islogical(x)));
 prsr.parse(photoStruct,fileName,varargin{:});
 
 % Find Common Sources and combine
 dataStructOfTables = findcommon(photoStruct,prsr.Results.MaxSep);
+
+% Filter the table if necessary
+if prsr.Results.FilterTable
+    filtInd = all(table2array(dataStructOfTables.FLUX_ISO),2);
+    fieldNames = fieldnames(dataStructOfTables);
+    for i = 1:length(fieldNames)
+        tmpTable = dataStructOfTables.(fieldNames{i});
+        tmpTable = tmpTable(filtInd,:);
+        dataStructOfTables.(fieldNames{i}) = tmpTable;
+    end
+end
 
 % Write Data to File
 writedatatables(dataStructOfTables,fileName);
