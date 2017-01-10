@@ -4,4 +4,7 @@
 # Don't include the wrapper script anymore
 sourcetester.m
 phototester.m
-ES0_137-001_photometry.mat
+
+# Don't include mat and xlsx files
+*.mat
+*.xlsx
