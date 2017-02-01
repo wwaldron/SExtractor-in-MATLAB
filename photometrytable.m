@@ -131,13 +131,15 @@ for k = 1:length(goodFields) % Loop through the data we want
         dataToWrite(inputStruct(i).commonCombined) = inputStruct(i).(goodFields{k});
         tmpTable.(inputStruct(i).filter) = dataToWrite;
         
-        for j = 1:length(inputStruct(i).dualPhotometry) % Loop through dual detection fields
-            
-            dataToWrite = zeros(size(RightAscension));
-            dataToWrite(inputStruct(i).commonCombined) = inputStruct(i).dualPhotometry(j).(goodFields{k});
-            tableFieldName = [inputStruct(i).filter,'_',inputStruct(i).dualPhotometry(j).filter];
-            tmpTable.(tableFieldName) = dataToWrite;
-            
+        if isfield(inputStruct,'dualPhotometry')
+            for j = 1:length(inputStruct(i).dualPhotometry) % Loop through dual detection fields
+                
+                dataToWrite = zeros(size(RightAscension));
+                dataToWrite(inputStruct(i).commonCombined) = inputStruct(i).dualPhotometry(j).(goodFields{k});
+                tableFieldName = [inputStruct(i).filter,'_',inputStruct(i).dualPhotometry(j).filter];
+                tmpTable.(tableFieldName) = dataToWrite;
+                
+            end
         end
         
     end
