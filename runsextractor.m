@@ -26,7 +26,8 @@ prsr.addParameter('AnalysisThreshold',1.5,  @(x) assert(isnumeric(x) && isvector
 prsr.addParameter('Gain',               1,  @(x) assert(isnumeric(x) && isvector(x) && all(x >= 0)));
 prsr.addParameter('SeeingFWHM',       0.5,  @(x) assert(isnumeric(x) && isvector(x) && all(x >= 0))); % ArcSecond
 prsr.addParameter('PixelScale',       1.0,  @(x) assert(isnumeric(x) && isvector(x) && all(x >= 0))); % ArcSecond
-prsr.addParameter('RemoveCatFiles', false,  @(x) assert(islogical(x)) )
+prsr.addParameter('RemoveCatFiles', false,  @(x) assert(islogical(x)) );
+prsr.addParameter('ZeroPoint',        0.0,  @(x) assert(isnumeric(x) && isvector(x) && all(x >= 0)))
 prsr.parse(fitsFiles,configFile,paramFile,convFile,nnFile,varargin{:});
 
 % Make scalars into vectors
@@ -42,6 +43,7 @@ if fileListLen > 1
     prsr.Results.Gain              = makevector(prsr.Results.Gain,fileListLen);
     prsr.Results.SeeingFWHM        = makevector(prsr.Results.SeeingFWHM,fileListLen);
     prsr.Results.PixelScale        = makevector(prsr.Results.PixelScale,fileListLen);
+    prsr.Results.ZeroPoint         = makevector(prsr.Results.ZeroPoint,fileListLen);
 end
 
 
@@ -183,6 +185,8 @@ for i = length(fitsFiles):-1:1
         'SeeingFWHM',prsr.UsingDefaults);
     confStr = replaceline(confStr,'PIXEL_SCALE',prsr.Results.PixelScale(i),...
         'PixelScale',prsr.UsingDefaults);
+    confStr = replaceline(confStr,'MAG_ZEROPOINT',prsr.Results.ZeroPoint(i),...
+        'ZeroPoint',prsr.UsingDefaults);
     
     % Write the changes to the file
     fidConf = fopen(confFile,'w');
@@ -284,6 +288,8 @@ for i = length(fitsFiles):-1:1
         'SeeingFWHM',prsr.UsingDefaults);
     confStr = replaceline(confStr,'PIXEL_SCALE',prsr.Results.PixelScale(i),...
         'PixelScale',prsr.UsingDefaults);
+    confStr = replaceline(confStr,'MAG_ZEROPOINT',prsr.Results.ZeroPoint(i),...
+        'ZeroPoint',prsr.UsingDefaults);
     [fitsPath,fitsIName,~] = fileparts(fitsI);
     
     if ~iscellstr(prsr.Results.FitsDualFiles)
