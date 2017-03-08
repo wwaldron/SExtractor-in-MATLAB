@@ -91,8 +91,8 @@ for i = 1:nFiles % Over wavebands
         end
         
         % Write those false sources to a file
-        [catPath,catFile,~] = fileparts(dataStruct(i).catFile);
-        falseRegFile = fullfile(catPath,[catFile,'_falsesource','.reg']);
+        [iptPath,iptFile,~] = fileparts(dataStruct(i).inputFile);
+        falseRegFile = fullfile(iptPath,[iptFile,'_falsesource','.reg']);
         writetoregfile(falseRegFile,prsr.Results.RegOutputFormat,...
             dataStruct(i),prsr.Results.CircleRegionRadius);
         
@@ -107,8 +107,8 @@ for i = 1:nFiles % Over wavebands
         end
         
         % Write those false sources to a file
-        [catPath,catFile,~] = fileparts(dataStruct(i).catFile);
-        allRegFile = fullfile(catPath,[catFile,'_allsource','.reg']);
+        [iptPath,iptFile,~] = fileparts(dataStruct(i).inputFile);
+        allRegFile = fullfile(iptPath,[iptFile,'_allsource','.reg']);
         writetoregfile(allRegFile,prsr.Results.RegOutputFormat,...
             dataStruct(i),prsr.Results.CircleRegionRadius);
         
