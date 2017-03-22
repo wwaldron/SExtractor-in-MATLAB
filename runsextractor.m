@@ -28,6 +28,7 @@ prsr.addParameter('SeeingFWHM',       0.5,  @(x) assert(isnumeric(x) && isvector
 prsr.addParameter('PixelScale',       1.0,  @(x) assert(isnumeric(x) && isvector(x) && all(x >= 0))); % ArcSecond
 prsr.addParameter('RemoveCatFiles', false,  @(x) assert(islogical(x)) );
 prsr.addParameter('ZeroPoint',        0.0,  @(x) assert(isnumeric(x) && isvector(x) && all(x >= 0)))
+prsr.addParameter('DualOpts',          {},  @(x) assert(isstruct(x)));
 prsr.parse(fitsFiles,configFile,paramFile,convFile,nnFile,varargin{:});
 
 % Make scalars into vectors
@@ -65,7 +66,7 @@ confStr = fileread(configFile);
 % changed.
 confStr = replaceline(confStr,'PARAMETERS_NAME',paramFile);
 confStr = replaceline(confStr,'FILTER_NAME',convFile);
-confStr = replaceline(confStr,'CHECKIMAGE_TYPE','NONE');
+% confStr = replaceline(confStr,'CHECKIMAGE_TYPE','NONE');
 confStr = replaceline(confStr,'STARNNW_NAME',nnFile);
 
 % Write the changes to the file
@@ -131,8 +132,10 @@ if ~isempty(varargin)
     % If it is not using the default value, then change the line
     if ~any(strcmpi(curOpt,defaults))
         % The item to change can be a number or string
-        if isnumeric(newVal)
+        if isnumeric(newVal) && numel(newVal) == 1
             repStr  = sprintf('%-17s%f',lineIdnt,newVal);
+        elseif isnumeric(newVal) && numel(newVal) == 2
+            repStr  = sprintf('%-17s%f,%f',lineIdnt,newVal(1),newVal(2));
         else
             repStr  = sprintf('%-17s%s',lineIdnt,newVal);
         end
@@ -278,18 +281,8 @@ for i = length(fitsFiles):-1:1
     % Replace certain conf params
     confStr = replaceline(confStr,'DETECT_MINAREA',prsr.Results.DetectMinArea(i),...
         'DetectMinArea',prsr.UsingDefaults);
-    confStr = replaceline(confStr,'DETECT_THRESH',prsr.Results.DetectThreshold(i),...
-        'DetectThreshold',prsr.UsingDefaults);
-    confStr = replaceline(confStr,'ANALYSIS_THRESH',prsr.Results.AnalysisThreshold(i),...
-        'AnalysisThreshold',prsr.UsingDefaults);
-    confStr = replaceline(confStr,'GAIN',prsr.Results.Gain(i),...
-        'Gain',prsr.UsingDefaults);
-    confStr = replaceline(confStr,'SEEING_FWHM',prsr.Results.SeeingFWHM(i),...
-        'SeeingFWHM',prsr.UsingDefaults);
     confStr = replaceline(confStr,'PIXEL_SCALE',prsr.Results.PixelScale(i),...
-        'PixelScale',prsr.UsingDefaults);
-    confStr = replaceline(confStr,'MAG_ZEROPOINT',prsr.Results.ZeroPoint(i),...
-        'ZeroPoint',prsr.UsingDefaults);
+            'PixelScale',prsr.UsingDefaults);
     [fitsPath,fitsIName,~] = fileparts(fitsI);
     
     if ~iscellstr(prsr.Results.FitsDualFiles)
@@ -300,16 +293,27 @@ for i = length(fitsFiles):-1:1
         
         fitsJ = prsr.Results.FitsDualFiles{j};
         
-        if strcmpi(fitsI,fitsJ)
-            continue;
-        end
-        
         % Create the CAT File
         [~,fitsJName,~]       = fileparts(fitsJ);
         catFile = fullfile(fitsPath,[fitsIName,'_and_',fitsJName,'.cat']);
         
         % Write the cat file to the conf string
         confStr = replaceline(confStr,'CATALOG_NAME',catFile);
+        val = prsr.Results.DetectThreshold(i);
+        confStr = replaceline(confStr,'DETECT_THRESH',val,...
+            'DetectThreshold',prsr.UsingDefaults);
+        val = prsr.Results.AnalysisThreshold(i);
+        confStr = replaceline(confStr,'ANALYSIS_THRESH',val,...
+            'AnalysisThreshold',prsr.UsingDefaults);
+        val = [prsr.Results.Gain(i),prsr.Results.DualOpts.Gain(j)];
+        confStr = replaceline(confStr,'GAIN',val,...
+            'Gain',prsr.UsingDefaults);
+        val = [prsr.Results.SeeingFWHM(i),prsr.Results.DualOpts.SeeingFWHM(j)];
+        confStr = replaceline(confStr,'SEEING_FWHM',val,...
+            'SeeingFWHM',prsr.UsingDefaults);
+        val = [prsr.Results.ZeroPoint(i),prsr.Results.DualOpts.ZeroPoint(j)];
+        confStr = replaceline(confStr,'MAG_ZEROPOINT',val,...
+            'ZeroPoint',prsr.UsingDefaults);
         
         % Write the changes to the file
         fidConf = fopen(confFile,'w');
@@ -371,8 +375,12 @@ for i = length(fitsFiles):-1:1
             end
             
             % Store the filter
-            filter  = fileInfo.PrimaryData.Keywords(filtInd,:);
-            catStruct(i).dualPhotometry(j).filter = filter{2};
+            if any(filtInd)
+                filter  = fileInfo.PrimaryData.Keywords(filtInd,:);
+                catStruct(i).dualPhotometry(j).filter = filter{2};
+            else
+                catStruct(i).dualPhotometry(j).filter = fitsJName;
+            end
             
         else
             catStruct(i).filter = [];

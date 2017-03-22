@@ -3,7 +3,7 @@
 
 # Don't include the wrapper script anymore
 sourcetester.m
-phototester.m
+phototester*.m
 
 # Don't include mat and xlsx files
 *.mat
